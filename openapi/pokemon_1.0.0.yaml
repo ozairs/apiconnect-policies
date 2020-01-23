@@ -1,0 +1,206 @@
+swagger: '2.0'
+info:
+  title: pokemon
+  x-ibm-name: pokemon
+  version: 1.0.0
+  description: >-
+    - Obtain Auth0 token using command 
+
+    ```
+
+    curl -s -X POST https://ozairs.auth0.com/oauth/token -H 'Content-Type:
+    application/json'  -H 'Host: ozairs.auth0.com' \
+      -d '{
+        "client_id": "some_id",
+        "client_secret": "some_secret",
+        "audience": "some_audience",
+        "grant_type": "client_credentials"
+    }'
+
+    ```
+host: $(catalog.host)
+schemes:
+  - https
+basePath: /api
+produces:
+  - application/json
+consumes:
+  - application/json
+security:
+  - clientIdHeader: []
+securityDefinitions:
+  clientIdHeader:
+    type: apiKey
+    in: header
+    name: X-IBM-Client-Id
+    description: ''
+x-ibm-configuration:
+  testable: true
+  enforced: true
+  cors:
+    enabled: true
+  assembly:
+    execute:
+      - switch:
+          version: 2.0.0
+          title: switch
+          case:
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/pokemon'))
+              execute:
+                - invoke:
+                    version: 2.0.0
+                    title: invoke
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: whitelist
+                      values: []
+                    timeout: 60
+                    verb: keep
+                    cache-response: protocol
+                    cache-ttl: 900
+                    stop-on-error: []
+                    target-url: 'https://pokemons.mybluemix.net/api/pokemons/'
+            - condition: '(($httpVerb() = ''GET'' and $operationPath() = ''/pokemon/{id}''))'
+              execute:
+                - invoke:
+                    version: 2.0.0
+                    title: invoke
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: whitelist
+                      values: []
+                    timeout: 60
+                    verb: keep
+                    cache-response: protocol
+                    cache-ttl: 900
+                    stop-on-error: []
+                    target-url: 'https://pokemons.mybluemix.net/api/pokemons/{id}'
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/validate'))
+              execute:
+                - invoke:
+                    title: get-jwk-auth0
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    version: 2.0.0
+                    target-url: 'https://ozairs.auth0.com/.well-known/jwks.json'
+                    output: rsa256-key
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+                - gatewayscript:
+                    title: save-jwk
+                    version: 2.0.0
+                    source: >-
+                      var rsa256Key =
+                      JSON.parse(context.get('rsa256-key.body'));
+
+                      console.error('rsa keys %s', rsa256Key.keys[0]);
+
+                      context.set('jwk-key', rsa256Key.keys[0]);
+                - jwt-validate:
+                    version: 2.0.0
+                    title: jwt-validate-jwk
+                    jwt: request.headers.authorization
+                    output-claims: decoded.claims
+                    iss-claim: .*
+                    aud-claim: .*
+                    jws-crypto: ''
+                    jws-jwk: jwk-key
+                - gatewayscript:
+                    title: decode-jwt
+                    version: 2.0.0
+                    source: "if (context.get('decoded.claims')) {\n\tvar response = { \n\t    \"active\": true, \n\t    \"jwt-claims\" : context.get('decoded.claims')\n\t};\n\t\n\tcontext.set('message.body', response);\n\tcontext.set('message.status.code', 200);\n\tconsole.info ('>> oauth introspection is successful %s', JSON.stringify(context.get('decoded.claims')));\n}\nelse {\n    context.set('message.status.code', 200);\n\t\n\tconsole.error ('>> oauth introspection failed %s', JSON.stringify(JSON.stringify(context.get('decoded.claims'))));\n}"
+    catch:
+      - errors:
+          - ConnectionError
+          - RuntimeError
+        execute:
+          - set-variable:
+              title: set-variable
+              actions:
+                - set: message.body
+                  value: '{"message": "Error occurred during search operation."}'
+                  type: string
+              version: 2.0.0
+  gateway: datapower-api-gateway
+  type: rest
+  phase: realized
+  activity-log:
+    enabled: true
+    error-content: header
+    success-content: activity
+  application-authentication:
+    certificate: false
+  properties:
+    target-url:
+      value: 'http://example.com/operation-name'
+      description: The URL of the target service
+      encoded: false
+parameters:
+  Authorization:
+    name: Authorization
+    type: string
+    required: false
+    in: header
+tags: []
+definitions: {}
+paths:
+  /validate:
+    get:
+      responses:
+        '200':
+          schema:
+            type: string
+          description: success
+      consumes:
+        - application/json
+      produces:
+        - application/json
+    parameters:
+      - name: Authorization
+        in: header
+        required: true
+        description: Token inside Authorization header
+        type: string
+  '/pokemon/{id}':
+    get:
+      responses:
+        '200':
+          description: 200 OK
+      consumes:
+        - application/json
+      produces:
+        - application/json
+    parameters:
+      - name: id
+        type: string
+        required: true
+        in: path
+      - name: Authorization
+        type: string
+        required: false
+        in: header
+  /pokemon:
+    get:
+      responses:
+        '200':
+          description: 200 OK
+      consumes:
+        - application/json
+      produces:
+        - application/json
+    post:
+      responses:
+        '200':
+          description: 200 OK
+      parameters:
+        - $ref: '#/parameters/Authorization'

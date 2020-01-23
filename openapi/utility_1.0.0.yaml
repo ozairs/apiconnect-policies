@@ -1,0 +1,404 @@
+swagger: '2.0'
+info:
+  title: utility
+  x-ibm-name: utility
+  version: 1.0.0
+host: $(catalog.host)
+schemes:
+  - https
+basePath: /utility
+produces:
+  - application/json
+consumes:
+  - application/json
+security:
+  - {}
+securityDefinitions:
+  clientIdHeader:
+    type: apiKey
+    name: X-IBM-Client-Id
+    in: header
+x-ibm-configuration:
+  phase: realized
+  testable: true
+  enforced: true
+  properties:
+    target-url:
+      value: 'http://example.com/operation-name'
+      description: The URL of the target service
+      encoded: false
+  cors:
+    enabled: true
+  activity-log:
+    enabled: true
+    error-content: header
+    success-content: activity
+  application-authentication:
+    certificate: false
+  assembly:
+    execute:
+      - switch:
+          version: 2.0.0
+          title: switch
+          case:
+            - condition: >-
+                (($httpVerb() = 'GET' and $operationPath() =
+                '/basic-auth/{username}/{password}'))
+              execute:
+                - gatewayscript:
+                    version: 2.0.0
+                    title: gatewayscript
+                    source: "console.error(\"utility.js\");\nvar reqauth = context.get('request.authorization').split(' ');\nvar splitval = new Buffer((reqauth[1] || ''), 'base64').toString('utf8').split(':');\nvar username = splitval[0] || '';\nvar password = splitval[1] || '';\nconsole.debug('user credential : [' + username + ':' + password + ']');\nif (username === context.get('request.parameters.username') && password === context.get('request.parameters.password')) {\n\tcontext.message.body.write({ \"authenticatedUser\": username });\n\tcontext.set('message.headers.api-authenticated-credential', 'cn=' + username + ',email=' + username + '@poon.com');\n    context.set('message.status.code', 200);\n\tcontext.message.header.set('Content-Type', 'application/json');\n}\nelse {\n\tcontext.set('message.status.code', 401);\n}"
+                - invoke:
+                    version: 2.0.0
+                    title: invoke
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: whitelist
+                      values: []
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    stop-on-error: []
+                    target-url: 'https://httpbin.org/get'
+                - gatewayscript:
+                    version: 2.0.0
+                    title: gatewayscript
+                    source: |-
+                      context.message.body.readAsJSON
+                      (function (error, response)
+                        {
+                          if (error)
+                          {
+                            return;
+                          }
+                          console.log("response %s", JSON.stringify(response));
+                          context.message.body.write(JSON.stringify(response));
+                        });
+                        
+                        context.message.statusCode = 200;
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/ping'))
+              execute:
+                - gatewayscript:
+                    version: 2.0.0
+                    title: gatewayscript
+                    source: >-
+                      context.message.body.write({"message":"hello world!"});
+
+                      context.message.header.set('Content-Type',
+                      'application/json');
+                - invoke:
+                    version: 2.0.0
+                    title: invoke
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: whitelist
+                      values: []
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    stop-on-error: []
+                    target-url: 'https://httpbin.org/get'
+                - gatewayscript:
+                    version: 2.0.0
+                    title: gatewayscript
+                    source: |-
+                      context.message.body.readAsJSON
+                      (function (error, response)
+                        {
+                          if (error)
+                          {
+                            return;
+                          }
+                          console.log("response %s", JSON.stringify(response));
+                          context.message.body.write(JSON.stringify(response));
+                        });
+            - condition: >-
+                (($httpVerb() = 'POST' and $operationPath() =
+                '/introspect/google'))
+              execute:
+                - gatewayscript:
+                    version: 2.0.0
+                    title: set-variables
+                    source: |-
+                      context.message.body.readAsBuffer
+                      (function (error, response)
+                        {
+                          if (error)
+                          {
+                            return;
+                          }
+                          
+                          console.error("response %s", response);
+                          var queryList = {};
+                          var queryParams = response.toString().split('&');
+                          for (var i = 0; i < queryParams.length; i++) {
+                              var tmpArray = queryParams[i].split('=');
+                              queryList[tmpArray[0]] = tmpArray[1];
+                              
+                          }
+                          console.error('token %s', queryList['token']);
+                          context.message.header.set('Authorization', 'Bearer ' + queryList['token']);
+                          console.error('scope %s', queryList['scope']);
+                          context.set('demo.introspect.response.scope', queryList['scope']);
+                          
+                        });
+                - invoke:
+                    version: 2.0.0
+                    title: invoke
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: whitelist
+                      values: []
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    stop-on-error: []
+                    target-url: >-
+                      https://openidconnect.googleapis.com/v1/userinfo?scope={demo.introspect.response.scope}
+                - gatewayscript:
+                    version: 2.0.0
+                    title: gatewayscript
+                    source: "context.message.body.readAsJSON(function (error, buffer) {\n    console.error ('>> response %s', JSON.stringify(buffer));\n    \n\tif (error || context.get('message.status.code') != '200') {\n\t\tcontext.set('message.status.code', 500);\n\t}\n\telse {\n\t\tvar response = { \n\t\t    \"active\": true \n\t\t};\n\n\t\t//simulate OAuth provider that returns scopes as part of the introspection lookup\n\t\tif (context.get('demo.introspect.response.scope') !== '' &&\n\t\t\tcontext.get('demo.introspect.response.scope') !== undefined) {\n\t\t\t    console.error ('>> oauth introspection - scope value %s', context.get('demo.introspect.response.scope'));\n\t\t\t//response['scope'] = context.get('demo.introspect.response.scope');\n\t\t\tresponse['scope'] = \"teams\";\n\t\t}\n\t\telse {\n\t\t    console.error ('>> oauth introspection - Unable to found scope');\n\t\t}\n\n\t\t//TESTING ONLY: include the basic-auth header in the request back in the response\n// \t\tresponse['basic-authorization'] = context.get('request.headers.authorization');\n\t\tresponse['username'] = buffer.email;\n\t\tresponse['client_id'] = buffer.sub;\n\t\t//set the response context\n\t    context.message.header.set('Content-Type', 'application/json');\n\t    context.set('message.status.code', 200);\n\t    console.error ('>> oauth introspection - returning response %s', JSON.stringify(response));\n\t    context.message.body.write(JSON.stringify(response));\n\t}\n});"
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/jwt-generate'))
+              execute:
+                - set-variable:
+                    version: 2.0.0
+                    title: set-variable
+                    actions:
+                      - set: iss.claim
+                        value: Spoon Bank Inc
+                        type: string
+                      - set: sign-jwk
+                        value: >-
+                          {   "kty": "RSA",   "d":
+                          "L4z3ZHzt-ZfxpcvkNisdjEnsohXy4Uy0rQ4-WgF5GnaT-wHhATgPH7dMetjQv1KpCVIjmfRr7iKp7scs5YLjcicA4gu26UWFcuJfz_pqNM1F7NxtBEFgK551hzAfTDXZjOWAOzoMqFuM0-XlttEPOuM3BLJu_izbAh0jOqMOmLxtnGSHhS9_kfE_0whEwpP7u4mCEeLa1LpYM0k6IaJ5ukyWgfRpYSEBvgO1TertOOSmHKDEBT9BPK90-xE54XbG8jF_p54PAQjIuYy8Qvm5zd9upAvbVR8XjDoP5RLdzY9oQl_4geRpGKzqrU0xlfu-stxDnNsG5eIn_JDGERS0wQ",  
+                          "e": "AQAB",   "use": "sig",   "kid": "ozairs",  
+                          "alg": "RS256",   "n":
+                          "ukWTn7nFhjoDVPLm2DxI8zrtHh95sw5SeSyUnYuR4wtE2hxHK6BmNoL8osU0Ph3QQge560BEGg2HIy48um86f-ZW3o8txINU3srSSJCa9xYbZHJdOrQzfZt0KpB8zpey67H6UZ_XZSX_UXporPQQtXTIRPEXXCU7cn2eP5F6cTm5gQD2qeOUyBjzch4wTxZXrFsRwQ8Ff_pIqWTSbQskIqmKEjiUhXtNfUf4uo8hNs1SmzoWP1HZwkWbnQrsYdmdl5ViugRlqcgwG9tgDBWGCRa9dhu2-QSlt5HEbfkbMc589xSYdroJe83kDCsDIpt_VSECD4vEBbPFnXtSqyMQzQ"
+                          }
+                        type: string
+                      - set: private.claim
+                        value: '{"disclaimer":"for demo purpose"}'
+                        type: string
+                      - set: aud.claim
+                        value: client-id
+                        type: string
+                      - set: sub.claim
+                        value: 'https://ozairs.apiconnect.com/'
+                        type: string
+                - jwt-generate:
+                    version: 2.0.0
+                    title: jwt-generate
+                    iss-claim: iss.claim
+                    exp-claim: 3600
+                    jws-alg: RS256
+                    private-claims: private.claim
+                    jti-claim: true
+                    sub-claim: sub.claim
+                    aud-claim: aud.claim
+                    jws-jwk: sign-jwk
+                - invoke:
+                    version: 2.0.0
+                    title: invoke
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: whitelist
+                      values: []
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    stop-on-error: []
+                    target-url: 'https://httpbin.org/get'
+                - gatewayscript:
+                    version: 2.0.0
+                    title: gatewayscript
+                    source: |-
+                      context.message.body.readAsJSON
+                      (function (error, response)
+                        {
+                          if (error)
+                          {
+                            return;
+                          }
+                          console.log("response %s", JSON.stringify(response));
+                          context.message.body.write(JSON.stringify(response));
+                        });
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/redirect'))
+              execute:
+                - set-variable:
+                    version: 2.0.0
+                    title: set-variable
+                    actions:
+                      - set: demo.identity.redirect.username
+                        value: ozairs
+                        type: string
+                      - set: demo.identity.redirect.confirmation
+                        value: 0123456789
+                        type: string
+                      - set: demo.identity.redirect.gateway-endpoint
+                        value: >-
+                          https://apigateway.apic2018.tor01.containers.appdomain.cloud
+                        type: string
+                - gatewayscript:
+                    version: 2.0.0
+                    title: gatewayscript
+                    source: >-
+                      // step 1. Display Form 
+
+
+                      // step 2. Authenticate and Authorize user
+
+
+                      // step 3. once user has been authenticated, the following
+                      code will generate the code with information about the
+                      user
+
+
+                      // step 4. Optionally, you can obtain user consent and
+                      pass that back to the OAuth provider
+
+
+                      var username =
+                      context.get('demo.identity.redirect.username');
+
+                      var confirmationCode =
+                      context.get('demo.identity.redirect.confirmation');
+
+                      console.error("username %s", username);
+
+                      console.error("confirmationCode %s", confirmationCode);
+
+
+                      // function getLocation(href) {
+
+                      //     var match =
+                      href.match(/^(https?\:)\/\/(([^:\/?#]*)(?:\:([0-9]+))?)([\/]{0,1}[^?#]*)(\?[^#]*|)(#.*|)$/);
+
+                      //     return match && {
+
+                      //         href: href,
+
+                      //         protocol: match[1],
+
+                      //         host: match[2],
+
+                      //         hostname: match[3],
+
+                      //         port: match[4],
+
+                      //         pathname: match[5],
+
+                      //         search: match[6],
+
+                      //         hash: match[7]
+
+                      //     }
+
+                      // }
+
+                      const { URL } = require('url');
+
+
+                      //Kubernetes-only, the original-url will be mapped to the
+                      internal service name instead of the ingress hostname but
+                      redirect must use ingress hostname
+
+                      var gatewayEndpoint =
+                      context.get('demo.identity.redirect.gateway-endpoint');
+
+                      console.error("request %s", context.request.querystring);
+
+                      var url =
+                      decodeURIComponent(context.request.querystring.split('original-url=')[1]);
+
+                      var location = gatewayEndpoint + new URL(url).pathname +
+                      new URL(url).search + '&username=' + username +
+                      '&confirmation=' + confirmationCode;
+
+                      console.error('redirect back to apic [%s]', location);
+
+
+                      //set the response headers to trigger a redirect back to
+                      API Connect
+
+                      context.message.statusCode = 302;
+
+                      context.message.header.set('Location', location);
+    catch: []
+  gateway: datapower-api-gateway
+  type: rest
+parameters:
+  username:
+    name: username
+    type: string
+    in: path
+    required: true
+  password:
+    name: password
+    type: string
+    in: path
+    required: true
+  Authorization:
+    name: Authorization
+    type: string
+    in: header
+    required: false
+tags: []
+definitions: {}
+paths:
+  /redirect:
+    get:
+      responses:
+        '200':
+          description: response code
+          schema:
+            type: string
+      consumes: []
+      produces: []
+  /jwt-generate:
+    get:
+      responses:
+        '200':
+          description: response code
+          schema:
+            type: string
+      consumes: []
+      produces: []
+  /introspect/google:
+    post:
+      responses:
+        '200':
+          description: success response code
+          schema:
+            type: integer
+      consumes: []
+      produces: []
+      parameters: []
+    parameters: []
+  /ping:
+    get:
+      responses:
+        '200':
+          description: 200 OK
+  '/basic-auth/{username}/{password}':
+    get:
+      responses:
+        '200':
+          description: 200 OK
+    parameters:
+      - $ref: '#/parameters/username'
+      - $ref: '#/parameters/password'
+      - $ref: '#/parameters/Authorization'

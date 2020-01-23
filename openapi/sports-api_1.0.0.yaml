@@ -1,0 +1,268 @@
+swagger: '2.0'
+info:
+  title: sports-api
+  x-ibm-name: sports-api
+  version: 1.0.0
+schemes:
+  - https
+basePath: /sports
+security:
+  - clientID: []
+securityDefinitions:
+  clientID:
+    type: apiKey
+    in: header
+    name: X-IBM-Client-Id
+x-ibm-configuration:
+  phase: realized
+  testable: true
+  enforced: true
+  properties:
+    target-url:
+      value: 'https://fancave.mybluemix.net'
+      description: URL of the proxy policy
+      encoded: false
+  catalogs: {}
+  cors:
+    enabled: true
+  activity-log:
+    enabled: true
+    error-content: header
+    success-content: activity
+  application-authentication:
+    certificate: false
+  assembly:
+    execute:
+      - switch:
+          version: 2.0.0
+          title: switch
+          case:
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/scores'))
+              execute:
+                - invoke:
+                    title: invoke
+                    version: 2.0.0
+                    verb: keep
+                    target-url: >-
+                      https://fancave.mybluemix.net/api/team/scores?league={league}&date={date}
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/players'))
+              execute:
+                - invoke:
+                    title: invoke
+                    version: 2.0.0
+                    verb: keep
+                    target-url: >-
+                      https://fancave.mybluemix.net/api/player/list?league={league}
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/news'))
+              execute:
+                - invoke:
+                    title: invoke
+                    version: 2.0.0
+                    verb: keep
+                    target-url: >-
+                      https://fancave.mybluemix.net/api/news/feed?league={league}
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/teams'))
+              execute:
+                - invoke:
+                    title: invoke
+                    version: 2.0.0
+                    verb: keep
+                    target-url: >-
+                      https://fancave.mybluemix.net/api/team/list?league={league}
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+                    description: invoke
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/teams/details'))
+              execute:
+                - invoke:
+                    title: invoke
+                    version: 2.0.0
+                    verb: keep
+                    target-url: >-
+                      https://fancave.mybluemix.net/api/team/list?league={league}
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+                    description: invoke
+                - parse:
+                    version: 2.0.0
+                    title: parse
+                    parse-settings-reference:
+                      default: apic-default-parsesettings
+                - json-to-xml:
+                    version: 2.0.0
+                    title: json-to-xml
+                    root-element-name: json
+                    always-output-root-element: false
+                    unnamed-element-name: element
+                - xslt:
+                    version: 2.0.0
+                    title: find-team
+                    input: true
+                    source: |-
+                      <xsl:include href="store:///dp/apim.custom.xsl" />
+
+                      <xsl:stylesheet version="1.0" 
+                          xmlns:xsl="http://www.w3.org/1999/XSL/Transform" 
+                          xmlns:dp="http://www.datapower.com/extensions" extension-element-prefixes="dp" exclude-result-prefixes="dp">
+
+
+                          <xsl:template match="/">
+                              
+                              <!-- xpath to xml row where name is equal to parameter -->
+                              <xsl:apply-templates select="/something" />
+                              
+                          </xsl:template>
+                          
+                          <xsl:template match="/something">
+                          </xsl:template>
+
+                      </xsl:stylesheet>
+                - xslt:
+                    version: 2.0.0
+                    title: invoke-db2
+                    input: true
+                    source: >-
+                      <xsl:include href="store:///dp/apim.custom.xsl" />
+
+
+                      <xsl:stylesheet version="1.0" 
+                          xmlns:xsl="http://www.w3.org/1999/XSL/Transform" 
+                          xmlns:dp="http://www.datapower.com/extensions" extension-element-prefixes="dp" exclude-result-prefixes="dp">
+
+                      <!--
+                          <xsl:variable name="sql-datasource" select="apim:getContext('param1')" />
+                      -->
+
+                      <xsl:variable name="sql-datasource"
+                      select="'ibm-cloud-db2'" />
+
+                          <xsl:template match="/">
+                          
+                              <xsl:if test="string-length($sql-datasource) = 0">
+                                  <xsl:call-template name="apim:error">
+                                      <xsl:with-param name="httpCode" select="'500'" />
+                                      <xsl:with-param name="httpReasonPhrase" select="'Invalid parameter'" />
+                                      <xsl:with-param name="errorMessage" select="'Invalid or empty SQL Datasource parameter'" />
+                                  </xsl:call-template>
+                              </xsl:if>
+
+                              <!-- db2 on cloud requires quotes on column names due to csv import tool -->
+                              <xsl:variable name="query" select="'SELECT &quot;NBA_Champion&quot;, &quot;Year&quot; FROM HKN34861.NBA_FINALS WHERE &quot;Year&quot;=2019'"/>
+                              <xsl:variable name="result" select="dp:sql-execute($sql-datasource, $query)" />
+                              <response>
+                                  <xsl:copy-of select="$result" />
+                                  <xsl:copy-of select="." />
+                              </response>
+                          </xsl:template>
+
+                      </xsl:stylesheet>
+                    description: ''
+    catch: []
+  gateway: datapower-api-gateway
+  type: rest
+paths:
+  /teams/details:
+    get:
+      responses:
+        '200':
+          description: response code
+          schema:
+            type: string
+      consumes: []
+      produces: []
+    parameters:
+      - name: name
+        in: query
+        required: false
+        description: team name
+        type: string
+  /news:
+    get:
+      responses:
+        '200':
+          description: response code
+          schema:
+            type: string
+      consumes: []
+      produces: []
+      parameters: []
+    parameters:
+      - name: league
+        in: query
+        required: false
+        type: string
+  /scores:
+    get:
+      responses:
+        '200':
+          description: response code
+          schema:
+            type: string
+      consumes: []
+      produces: []
+      parameters: []
+    parameters:
+      - name: league
+        in: query
+        required: false
+        type: string
+      - name: date
+        in: query
+        required: false
+        type: string
+  /players:
+    get:
+      responses:
+        '200':
+          description: response code
+          schema:
+            type: string
+      consumes: []
+      produces: []
+      parameters: []
+    parameters:
+      - name: league
+        in: query
+        required: false
+        type: string
+  /teams:
+    get:
+      responses:
+        '200':
+          description: response code
+          schema:
+            type: string
+      consumes: []
+      produces: []
+      parameters: []
+    parameters:
+      - name: league
+        in: query
+        required: false
+        type: string

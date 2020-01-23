@@ -1,0 +1,266 @@
+swagger: '2.0'
+info:
+  title: Weather Provider API
+  x-ibm-name: weather-provider-api
+  version: 1.0.0
+  description: description
+schemes:
+  - https
+basePath: /api
+produces:
+  - application/json
+consumes:
+  - application/json
+security:
+  - oauth-server:
+      - weather
+securityDefinitions:
+  oauth-server:
+    type: oauth2
+    flow: password
+    x-ibm-oauth-provider: oauth2-server
+    tokenUrl: 'https://$(catalog.url)//oauth2/token'
+    scopes:
+      weather: Weather Scope
+  clientId-query:
+    type: apiKey
+    in: query
+    name: client_id
+  clientId-header:
+    type: apiKey
+    in: header
+    name: X-IBM-Client-Id
+x-ibm-configuration:
+  phase: realized
+  testable: true
+  enforced: true
+  properties:
+    target-url:
+      value: 'http://example.com/operation-name'
+      description: The URL of the target service
+      encoded: false
+  cors:
+    enabled: true
+  activity-log:
+    enabled: true
+    error-content: header
+    success-content: activity
+  application-authentication:
+    certificate: false
+  assembly:
+    execute:
+      - switch:
+          version: 2.0.0
+          title: switch
+          case:
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/current'))
+              execute:
+                - invoke:
+                    title: invoke-current
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    version: 2.0.0
+                    target-url: >-
+                      https://myweatherprovider.mybluemix.net/current?zipcode=$(request.parameters.zipcode)
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+                - gatewayscript:
+                    title: gatewayscript
+                    version: 2.0.0
+                    source: >-
+                      //get the payload
+
+                      console.debug("json %s",
+                      JSON.stringify(context.get('message')));
+
+
+                      //check error in response
+
+                      if (context.message.body && context.message.statusCode ==
+                      '404') {
+                          console.error("throwing apim error %s", JSON.stringify(context.message.statusCode));
+                          context.reject('ConnectionError', 'Failed to retrieve data');
+                          context.set('message.status.code', 500);
+                      }
+
+                      else {
+                          context.message.header.set('platform', 'Powered by IBM API Connect');
+                          // var json = context.get('message').body;
+                          // json.platform = 'Powered by IBM API Connect';
+                          context.message.body.readAsJSON(function (error, json) {
+                              if (error) {
+                                  console.error('readAsJSON error: ' + error);
+                              } else {
+                                  json.platform = 'Powered by IBM API Connect';
+                                  context.message.body.write(json);
+                              }
+                          })
+                      }
+            - condition: (($httpVerb() = 'GET' and $operationPath() = '/today'))
+              execute:
+                - invoke:
+                    title: invoke-today
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    version: 2.0.0
+                    description: ''
+                    target-url: >-
+                      https://myweatherprovider.mybluemix.net/today?zipcode=$(request.parameters.zipcode)
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+            - condition: (($httpVerb() = 'POST' and $operationPath() = '/validate'))
+              execute:
+                - invoke:
+                    title: invoke
+                    timeout: 60
+                    verb: GET
+                    cache-response: protocol
+                    cache-ttl: 900
+                    version: 2.0.0
+                    target-url: 'https://ozairs.auth0.com/.well-known/jwks.json'
+                    output: rsa256-key
+                    header-control:
+                      type: blacklist
+                      values: []
+                    parameter-control:
+                      type: blacklist
+                      values: []
+                - gatewayscript:
+                    title: gatewayscript
+                    version: 2.0.0
+                    source: >-
+                      var rsa256Key =
+                      JSON.parse(context.get('rsa256-key.body'));
+
+                      console.error('rsa keys %s', rsa256Key.keys[0]);
+
+                      context.set('jwk-key', rsa256Key.keys[0]);
+                - jwt-validate:
+                    version: 2.0.0
+                    title: jwt-validate
+                    jwt: request.headers.authorization
+                    output-claims: decoded.claims
+                    iss-claim: .*
+                    aud-claim: .*
+                    jws-crypto: ''
+                    jws-jwk: jwk-key
+                - gatewayscript:
+                    title: gatewayscript
+                    version: 2.0.0
+                    source: "if (context.get('decoded.claims')) {\n\t\tvar response = { \"active\": true };\n\t\t\n\t\tcontext.set('message.body', response);\n// \t\tapim.output('application/json');\n\t\tcontext.set('message.status.code', 200);\n\t\tconsole.info ('>> oauth introspection is successful %s', JSON.stringify(context.get('decoded.claims')));\n\t}\n\telse {\n\t    context.set('message.status.code', 200);\n\t\t\n\t\tconsole.error ('>> oauth introspection failed %s', JSON.stringify(JSON.stringify(context.get('decoded.claims'))));\n\t}"
+    catch:
+      - errors:
+          - ConnectionError
+          - RuntimeError
+        execute:
+          - set-variable:
+              title: set-variable
+              actions:
+                - set: message.body
+                  value: '{"message": "Error occurred during search operation."}'
+                  type: string
+              version: 2.0.0
+  gateway: datapower-api-gateway
+  type: rest
+definitions:
+  Weather:
+    type: object
+    properties:
+      iss:
+        type: string
+      sub:
+        type: string
+      aud:
+        type: string
+      exp:
+        type: string
+      iat:
+        type: string
+      scope:
+        type: string
+  Today:
+    type: object
+    properties:
+      zip:
+        type: string
+      hi:
+        type: integer
+      lo:
+        type: integer
+      nightHumidity:
+        type: integer
+      city:
+        type: string
+      state:
+        type: string
+      dayHumidity:
+        type: integer
+  Current:
+    type: object
+    properties:
+      zip:
+        type: string
+      temperature:
+        type: integer
+      humidity:
+        type: integer
+      city:
+        type: string
+      state:
+        type: string
+paths:
+  /validate:
+    post:
+      responses:
+        '200':
+          description: Success
+          schema:
+            $ref: '#/definitions/Weather'
+      security: []
+      parameters: []
+    parameters:
+      - name: Authorization
+        type: string
+        in: header
+        required: true
+        description: 'Authorization: Bearer <access_token>'
+  /today:
+    get:
+      summary: Today's Weather
+      parameters:
+        - name: zipcode
+          type: string
+          in: query
+          required: true
+          description: A valid 5-digit US zip code
+      responses:
+        '200':
+          description: Profile information for a user
+          schema:
+            $ref: '#/definitions/Today'
+  /current:
+    get:
+      summary: Current Weather
+      parameters:
+        - name: zipcode
+          in: query
+          description: A valid 5-digit US zip code
+          required: true
+          type: string
+      responses:
+        '200':
+          description: Success
+          schema:
+            $ref: '#/definitions/Current'

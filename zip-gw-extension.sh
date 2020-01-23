@@ -1,0 +1,1 @@
+zip gw-extension.zip udp-basic/*.cfg udp-basic/*.js
