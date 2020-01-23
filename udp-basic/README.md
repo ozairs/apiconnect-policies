@@ -8,6 +8,7 @@
 Make sure you have downloaded the following files from IBM Fix Central
 - IBM LTE (eg apic-lte-2018.4.1-15)
 - API Designer & CLI (eg toolkit-loopback-designer-mac_lts_v2018.4.1.6-ifix3.0)
+- Clone the GitHub repository at [here](https://github.com/ozairs/apiconnect-policies.git)
 
 Note: The above file names will likely change during each new release
 
@@ -48,11 +49,11 @@ In this section, you will use the API Designer to deploy a set of APIs and gain 
 1. Open the API Designer and navigate to the `openapi` folder. 
 2. In the Connect to Cloud page, enter the URL `https://127.0.0.1:2000`. This endpoint is the API Manager running locally (ie Platform API url that is displayed when you start the LTE).
 3. Login to the API manager using the credentials `shavon` and password `7iron-hide`.
-4. Click on **Develop APIs and Products** and select `sports-api-1.0.0`.
+4. Click on **Develop APIs and Products** and select `sports-api-1.0.0`. If you don't have that API in your repository, you can upload it from the `openapi` directory.
 5. Click the **Assemble** tab at the top.
-    ![alt](_images/AssembleTab.jpg_)
+    ![alt](../_images/AssembleTab.jpg_)
 6. Publishing APIs using LTE does not require you to explicitly define a product. You can quickly tests APIs using the default subscription which implicitly creates an API product. In the top right-hand corner, select the Offline toggle icon to publish the Sports API. Once complete the toggle will switch to **Online**.
-    ![alt](_images/AssemblePlay.jpg_)
+    ![alt](../_images/AssemblePlay.jpg_)
 7. Once the API is published, you can easily test it using any tool. For simplicity, you can use the following curl command (replacing the client id and secret with your own values)
     ```
     curl -k -X GET \
