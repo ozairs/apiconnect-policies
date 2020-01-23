@@ -210,13 +210,16 @@ In the next step, you will manually trigger the API Manager to send the UDP to t
 8. Trigger the API Manager to push the Gateway extension to the Gateway. Restart the API Connect Gateway service, modify the **Administrate State** to **disabled** and click **Apply**. Change the state back to **Enabled** and click **Apply**.
 
 9. You may need to wait a minute for the Gateway Extension to copy over, when you refresh the screen, scroll down to the User-defined Policy, select the `UDP Basic` policy in the drop-down and click **add**.  Click **Apply** to save the configuration.
+
     ![alt](../_images/AddUDPPolicy.jpg)
-10. Switch to the API Designer and click the existing **sports-api-1.0.0** API. Click the **Assemble** tab. You should see the `UDP Basic` policy
+
+10. Switch to the API Designer and click the existing **sports-api-1.0.0** API. Click the **Assemble** tab. You should see the `UDP Basic` policy.
+
     ![alt](../_images/UDPPolicy.jpg)
 
 11. Drag and drop the UDP-Basic policy into the Assembly. Click the Policy and enter any credential value say `ozairs`. Save the policy.
 
-12. Republish the API - in the top right-hand corner beside **Running**, click the Play icon or the wheel icon to republish the API. 
+12. Switch to the Design view and Republish the API. In the top right-hand corner beside **Running**, click the Play icon or the wheel icon to republish the API. 
 
 13. Test the API again using curl, you should get a JSON response, with the parameter value and the JSON body
 
